@@ -1,0 +1,120 @@
+version: "3.8"
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey"
+    AIRFLOW__CONNECTIONS__MOOVITAMIX_API: "http://api:8000"
+    AIRFLOW__CORE__ENABLE_XCOM_PICKLING: "true"
+    AIRFLOW__CORE__DAG_FILE_PROCESSOR_TIMEOUT: "600"
+  user: "50000:0"
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - airflow_data:/opt/airflow/data
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - airflow_data:/app/data
+    user: "50000:0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - moovitamix_network
+
+  # Postgres
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    networks:
+      - moovitamix_network
+
+  # Airflow init
+  airflow-init:
+    <<: *airflow-common
+    command: |
+      bash -c '
+        mkdir -p /opt/airflow/data/raw &&
+        chown -R 50000:0 /opt/airflow/data &&
+        chmod -R 775 /opt/airflow/data &&
+        chmod g+s /opt/airflow/data &&
+        airflow db init &&
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com &&
+        airflow connections add "moovitamix_api" \
+          --conn-type "http" \
+          --conn-host "http://api" \
+          --conn-port "8000"
+      '
+    user: "0:0"
+    networks:
+      - moovitamix_network
+
+  # Airflow webserver
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - moovitamix_network
+
+  # Airflow scheduler
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - moovitamix_network
+
+volumes:
+  postgres-data:
+  airflow_data:
+    name: airflow_data
+
+networks:
+  moovitamix_network:
+    driver: bridge
