@@ -164,3 +164,38 @@ Version control for models
 Metric tracking
 Model registry
 Automated deployment
+
+#### How to set up the docker to run the airflow pipeline locally
+
+# 1. Set up environment variable for Airflow (If you alreay have them, no need)
+
+echo "AIRFLOW_UID=$(id -u)" > .env
+
+# 3. Create necessary directories(if you do not have them)
+
+mkdir -p ./airflow/dags
+
+# 4. Start the initial setup
+
+docker-compose up -d postgres
+sleep 10 # Wait for postgres to be healthy
+docker-compose up airflow-init
+
+# 5. Start all services
+
+docker-compose up -d
+
+#### After these commands, you can access:
+
+Airflow UI: http://localhost:8080 (login: admin/password: admin)
+FastAPI: http://localhost:8000
+
+#### Once all the images are pulled now you can just use this to start or stop
+
+# To start
+
+docker-compose up -d
+
+# To stop
+
+docker-compose down
