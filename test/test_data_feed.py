@@ -4,11 +4,11 @@ from unittest.mock import Mock, patch
 import pandas as pd
 from datetime import datetime
 
-from moovitamix_fastapi.etl.data_feed import DataFeed
+from src.moovitamix_fastapi.etl.data_feed import MooVitamixDataFeed  
 
 @pytest.fixture
 def data_feed():
-    return DataFeed(base_url="http://test-api")
+    return MooVitamixDataFeed(base_url="http://test-api")  
 
 @pytest.fixture
 def mock_response():
@@ -24,7 +24,6 @@ def mock_response():
 def test_make_request_successful(data_feed, mock_response):
     """Test successful API request with pagination"""
     with patch('requests.get') as mock_get:
-        # First page has data, second page empty (end of pagination)
         mock_get.side_effect = [
             mock_response,
             Mock(json=lambda: {"items": []})
@@ -49,7 +48,6 @@ def test_make_request_handles_error(data_feed):
 
 def test_save_to_parquet(data_feed, tmp_path):
     """Test saving data to parquet file"""
-    # Override output directory for testing
     data_feed.output_dir = str(tmp_path)
     
     test_data = [
@@ -71,18 +69,17 @@ def test_save_to_parquet(data_feed, tmp_path):
 
 def test_extract_all_integration(data_feed, mock_response, tmp_path):
     """Integration test for the full extraction process"""
-    # Override output directory for testing
     data_feed.output_dir = str(tmp_path)
     
     with patch('requests.get') as mock_get:
         # Mock successful responses for all endpoints
         mock_get.side_effect = [
-            mock_response,  # tracks first page
-            Mock(json=lambda: {"items": []}),  # tracks second page
-            mock_response,  # users first page
-            Mock(json=lambda: {"items": []}),  # users second page
-            mock_response,  # listen_history first page
-            Mock(json=lambda: {"items": []})   # listen_history second page
+            mock_response, 
+            Mock(json=lambda: {"items": []}),  
+            mock_response,  
+            Mock(json=lambda: {"items": []}), 
+            mock_response,  
+            Mock(json=lambda: {"items": []})   
         ]
         
         data_feed.extract_all()
@@ -93,4 +90,4 @@ def test_extract_all_integration(data_feed, mock_response, tmp_path):
         assert os.path.exists(os.path.join(str(tmp_path), "listen_history.parquet"))
         
         # Verify mock calls
-        assert mock_get.call_count == 6  # Two calls per endpoint (pagination)
+        assert mock_get.call_count == 6

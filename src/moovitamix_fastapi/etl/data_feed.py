@@ -1,5 +1,3 @@
-"""This data feed will be used for retrieval every day"""
-
 import os
 import logging
 from datetime import datetime
@@ -7,8 +5,7 @@ import requests
 import pandas as pd
 from typing import List, Dict, Any
 
-# here we set up some logging
-
+# Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -26,7 +23,7 @@ class MooVitamixDataFeed:
         self.output_dir = os.path.join('data', 'raw', datetime.now().strftime('%Y-%m-%d'))
 
     def _make_request(self, endpoint: str) -> List[Dict[Any, Any]]:
-        """ requests to the endpoint"""
+        """Make paginated requests to the API endpoint"""
         url = f"{self.base_url}{endpoint}"
         all_items = []
         page = 1
